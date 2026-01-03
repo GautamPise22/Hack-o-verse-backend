@@ -22,6 +22,7 @@ app.use(async (req, res, next) => {
 
 // Routes
 // Ensure these files exist at these specific paths
+app.use("/api/analytics", require("../routes/analyticsRoutes"));
 app.use("/api/auth", require("../routes/authRoutes"));
 app.use("/api/inventory", require("../routes/inventoryRoutes"));
 
