@@ -2,7 +2,7 @@
 const mongoose = require("mongoose");
 
 const medicalShopSchema = new mongoose.Schema({
-    // Fields matching your friend's existing structure
+    // Shop Details
     shopName: { type: String, required: true },
     ownerName: { type: String, required: true },
     mobile: { type: String, required: true },
@@ -10,16 +10,15 @@ const medicalShopSchema = new mongoose.Schema({
     openingTime: { type: String, required: true },
     closingTime: { type: String, required: true },
     
-    // Using 'shopId' (camelCase) to match your screenshot
+    // Identifiers
     shopId: { type: String, required: true, unique: true }, 
-    
     status: { type: String, default: "pending" },
 
-    // NEW FIELDS we are adding for Login
-    username: { type: String, required: true, unique: true },
+    // LOGIN FIELDS (Changed from Username to Email)
+    email: { type: String, required: true, unique: true }, // Login ID
     password: { type: String, required: true }
 }, { 
-    collection: 'medicalshops', // Forces Mongoose to use your friend's collection
+    collection: 'medicalshops', 
     timestamps: true 
 });
 

@@ -1,60 +1,61 @@
 // routes/authRoutes.js
 const express = require("express");
 const bcrypt = require("bcryptjs");
-const MedicalShop = require("../models/MedicalShop"); // Import the new model
+const MedicalShop = require("../models/MedicalShop"); 
 
 const router = express.Router();
 
-// REGISTER A NEW SHOP (Updated with all fields)
+// REGISTER A NEW SHOP (Using Email)
 router.post("/register", async (req, res) => {
     try {
         const { 
-            username, password, // Login fields
-            shopName, shopId, ownerName, mobile, address, openingTime, closingTime // Shop Details
+            email, password, // Login via Email
+            shopName, shopId, ownerName, mobile, address, openingTime, closingTime 
         } = req.body;
         
-        // Check if username or shopId already exists
-        const existingUser = await MedicalShop.findOne({ $or: [{ username }, { shopId }] });
-        if (existingUser) return res.status(400).json({ message: "Username or Shop ID already exists" });
+        // Check if EMAIL or shopId already exists
+        const existingUser = await MedicalShop.findOne({ $or: [{ email }, { shopId }] });
+        if (existingUser) return res.status(400).json({ message: "Email or Shop ID already exists" });
 
         // Hash password
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
         const newShop = new MedicalShop({
-            username,
+            email, // Saving email
             password: hashedPassword,
             shopName,
-            shopId, // Saving as shopId (camelCase)
+            shopId,
             ownerName,
             mobile,
             address,
             openingTime,
             closingTime,
-            status: "active" // Auto-activate for now
+            status: "active"
         });
 
         await newShop.save();
-        res.status(201).json({ message: "Shop registered successfully in 'medicalshops' collection" });
+        res.status(201).json({ message: "Shop registered successfully" });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// LOGIN
+// LOGIN (Using Email)
 router.post("/login", async (req, res) => {
     try {
-        const { username, password } = req.body;
+        // Expect 'email' instead of 'username'
+        const { email, password } = req.body;
         
-        const user = await MedicalShop.findOne({ username });
+        // Find user by EMAIL
+        const user = await MedicalShop.findOne({ email });
         if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ success: false, message: "Invalid credentials" });
 
-        // IMPORTANT: We send back 'shop_id' (snake_case) to match what your Frontend expects
-        // even though database has 'shopId' (camelCase).
+        // Send back shop details
         res.json({ 
             success: true,
             message: "Login Successful", 

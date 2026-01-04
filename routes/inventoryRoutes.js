@@ -2,7 +2,7 @@ const express = require("express");
 const Medicine = require("../models/Medicine");
 const router = express.Router();
 
-// 1. GET DASHBOARD STATS
+// 1. GET DASHBOARD STATS (Updated to show CURRENT Stock)
 // Usage: GET /api/inventory/stats/SHOP_123
 router.get("/stats/:shop_id", async (req, res) => {
     try {
@@ -11,26 +11,38 @@ router.get("/stats/:shop_id", async (req, res) => {
         // Fetch all medicines assigned to this specific shop
         const allMedicines = await Medicine.find({ medical_shop_id: shopId });
 
-        let totalMedicinesReceived = allMedicines.length; // Counts strips/units
+        let totalMedicinesReceived = 0; // This will now represent CURRENT STOCK (Unsold Units)
         let totalPillsSold = 0;
         let totalPillsRemaining = 0;
 
         allMedicines.forEach((med) => {
+            // 1. Calculate Unit Stock (Strips/Bottles)
+            // If the unit itself is NOT marked as sold, count it in stock
+            if (!med.is_selled) {
+                totalMedicinesReceived++;
+            }
+
+            // 2. Calculate Pills Logic
             if (med.type === "strip") {
-                // For strips, check individual pills in subTextCodes
-                med.subTextCodes.forEach(pill => {
-                    if (pill.status === "sold") totalPillsSold++;
-                    if (pill.status === "active") totalPillsRemaining++;
-                });
+                // For strips, check individual pills
+                if (med.subTextCodes && med.subTextCodes.length > 0) {
+                    med.subTextCodes.forEach(pill => {
+                        if (pill.status === "sold") totalPillsSold++;
+                        if (pill.status === "active") totalPillsRemaining++;
+                    });
+                }
             } else {
-                // For singles, check the main selling status
-                if (med.is_selled) totalPillsSold++;
-                else totalPillsRemaining++;
+                // For singles/tablets
+                if (med.is_selled) {
+                    totalPillsSold++;
+                } else {
+                    totalPillsRemaining++;
+                }
             }
         });
 
         res.json({
-            totalMedicinesReceived,
+            totalMedicinesReceived, // Now sends correct "Available Units" count
             totalPillsSold,
             totalPillsRemaining
         });
@@ -39,7 +51,7 @@ router.get("/stats/:shop_id", async (req, res) => {
     }
 });
 
-// 2. GET ALL MEDICINES (AGGREGATED VIEW)
+// 2. GET ALL MEDICINES (AGGREGATED VIEW - FIXED)
 // Usage: GET /api/inventory/view/SHOP_123
 router.get("/view/:shop_id", async (req, res) => {
     try {
@@ -56,12 +68,15 @@ router.get("/view/:shop_id", async (req, res) => {
                         name: "$medicine_name",
                         brand: "$brand_name"
                     },
-                    // Count how many strip documents exist
-                    totalStrips: { $sum: 1 },
+                    
+                    // ✅ FIX: Only count this unit if 'is_selled' is FALSE
+                    totalStrips: { 
+                        $sum: { 
+                            $cond: [{ $eq: ["$is_selled", true] }, 0, 1] 
+                        } 
+                    },
 
                     // Calculate total pills:
-                    // If it's a strip, count 'active' subTextCodes.
-                    // If it's a single unit, count 1 if not sold.
                     totalPillsAvailable: {
                         $sum: {
                             $cond: {
@@ -80,7 +95,7 @@ router.get("/view/:shop_id", async (req, res) => {
                         }
                     },
                     
-                    // Keep the earliest expiry date
+                    // Keep the earliest expiry date of UNSOLD items
                     nextExpiry: { $min: "$expiry_date" }
                 }
             },
@@ -90,7 +105,6 @@ router.get("/view/:shop_id", async (req, res) => {
         ]);
 
         if (inventory.length === 0) {
-            // Return empty array instead of message object to prevent frontend crash
             return res.json([]); 
         }
 
@@ -101,7 +115,7 @@ router.get("/view/:shop_id", async (req, res) => {
     }
 });
 
-// 3. SELL A MEDICINE (Kept for future use/admin)
+// 3. SELL A MEDICINE
 // Usage: POST /api/inventory/sell
 router.post("/sell", async (req, res) => {
     try {
@@ -109,7 +123,6 @@ router.post("/sell", async (req, res) => {
 
         if (!shop_id) return res.status(400).json({ message: "Shop ID is required" });
 
-        // Find medicine that matches the textCode AND the shop_id
         const medicine = await Medicine.findOne({ textCode, medical_shop_id: shop_id });
 
         if (!medicine) return res.status(404).json({ message: "Medicine not found in this shop" });
